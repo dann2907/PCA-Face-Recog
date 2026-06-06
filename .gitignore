@@ -25,5 +25,8 @@ conductor/
 *.sw?
 
 GEMINI.md
-venv/
+CLAUDE.MD
+backend/.venv
+backend/venv
 .venv/
+.claude/

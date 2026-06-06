@@ -51,12 +51,20 @@ const translations = {
     esm_target: "Subject Matrix (Target)",
     esm_import: "Select Source",
     esm_btn_compare: "Compute Subspace Distance",
-    esm_sim: "Similarity Coefficient",
-    esm_dist: "Euclidean Distance",
+    esm_sim: "Cosine Similarity",
     esm_conf: "Confidence Level",
     esm_high: "High",
     esm_mod: "Moderate",
     esm_low: "Low",
+    esm_decision: "Decision",
+    esm_match: "Match",
+    esm_no_match: "No Match",
+    esm_mode_compare: "Compare",
+    esm_mode_recognize: "Recognize",
+    esm_recog_title: "Face Identification",
+    esm_recog_btn: "Identify Face",
+    esm_recog_result: "Identification Result",
+    esm_unknown: "Unknown",
     docs_title: "Mathematical Foundation",
     docs_intro: "This platform leverages Principal Component Analysis to map high-dimensional visual data into an optimized feature space, enabling efficient representation and pattern recognition.",
     docs_decomp: "Decomposition",
@@ -106,12 +114,20 @@ const translations = {
     esm_target: "Matriks Subjek (Target)",
     esm_import: "Pilih Sumber",
     esm_btn_compare: "Hitung Jarak Subspace",
-    esm_sim: "Koefisien Kemiripan",
-    esm_dist: "Jarak Euclidean",
+    esm_sim: "Kemiripan Kosinus",
     esm_conf: "Tingkat Kepercayaan",
     esm_high: "Tinggi",
     esm_mod: "Sedang",
     esm_low: "Rendah",
+    esm_decision: "Keputusan",
+    esm_match: "Mirip",
+    esm_no_match: "Tidak Mirip",
+    esm_mode_compare: "Bandingkan",
+    esm_mode_recognize: "Identifikasi",
+    esm_recog_title: "Identifikasi Wajah",
+    esm_recog_btn: "Identifikasi Wajah",
+    esm_recog_result: "Hasil Identifikasi",
+    esm_unknown: "Tidak Dikenali",
     docs_title: "Fondasi Matematika",
     docs_intro: "Platform ini memanfaatkan Principal Component Analysis untuk memetakan data visual dimensi tinggi ke dalam ruang fitur yang dioptimalkan, memungkinkan representasi dan pengenalan pola yang efisien.",
     docs_decomp: "Dekomposisi",
@@ -452,9 +468,10 @@ const PCATab = ({ t, lang }: { t: any, lang: Lang }) => {
 };
 
 const ESMTab = ({ t }: { t: any }) => {
-  const [child, setChild] = useState<{f: File, p: string} | null>(null);
-  const [adult, setAdult] = useState<{f: File, p: string} | null>(null);
-  const [result, setResult] = useState<{similarity: number, distance: number} | null>(null);
+  const [mode, setMode] = useState<'compare' | 'recognize'>('compare');
+  const [source, setSource] = useState<{f: File, p: string} | null>(null);
+  const [target, setTarget] = useState<{f: File, p: string} | null>(null);
+  const [result, setResult] = useState<{similarity: number; decision: string; threshold: number; name?: string; unknown?: boolean} | null>(null);
   const [loading, setLoading] = useState(false);
   const [training, setTraining] = useState(false);
   const [trained, setTrained] = useState(false);
@@ -468,13 +485,24 @@ const ESMTab = ({ t }: { t: any }) => {
   };
 
   const compare = async () => {
-    if (!child || !adult) return;
+    if (!source || !target) return;
     setLoading(true);
     const formData = new FormData();
-    formData.append('child_file', child.f);
-    formData.append('adult_file', adult.f);
+    formData.append('source_file', source.f);
+    formData.append('target_file', target.f);
     try {
       const { data } = await axios.post(`${API_BASE}/api/esm/compare`, formData);
+      setResult(data);
+    } catch (e) { console.error(e); } finally { setLoading(false); }
+  };
+
+  const recognize = async () => {
+    if (!source) return;
+    setLoading(true);
+    const formData = new FormData();
+    formData.append('file', source.f);
+    try {
+      const { data } = await axios.post(`${API_BASE}/api/esm/recognize`, formData);
       setResult(data);
     } catch (e) { console.error(e); } finally { setLoading(false); }
   };
@@ -514,48 +542,144 @@ const ESMTab = ({ t }: { t: any }) => {
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-        <FaceBox label={t.esm_source} val={child} set={setChild} color="indigo" t={t} />
-        <FaceBox label={t.esm_target} val={adult} set={setAdult} color="slate" t={t} />
-      </div>
-
-      <div className="flex flex-col items-center pt-8">
-        <button 
-          onClick={compare}
-          disabled={!child || !adult || loading || !trained}
-          className="px-12 py-5 bg-indigo-600 text-white rounded-2xl text-base font-bold shadow-xl shadow-indigo-100 hover:bg-indigo-700 active:scale-95 transition-all disabled:opacity-40 flex items-center gap-4"
-        >
-          {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <>{t.esm_btn_compare} <RefreshCw className="w-4 h-4" /></>}
-        </button>
-
-        {result && (
-          <div className="mt-16 w-full max-w-2xl bg-white rounded-3xl p-10 shadow-xl border border-slate-100 animate-in zoom-in-95 duration-500 text-center relative overflow-hidden">
-            <div className="absolute top-0 left-0 w-full h-1.5 bg-slate-50">
-              <div className="h-full bg-indigo-600 transition-all duration-1000 ease-out" style={{ width: `${result.similarity}%` }} />
-            </div>
-            
-            <p className="text-xs font-bold text-slate-400 uppercase tracking-[0.4em] mb-4">{t.esm_sim}</p>
-            <div className="text-[120px] font-bold tracking-tighter text-indigo-600 leading-none mb-6">
-              {Math.round(result.similarity)}<span className="text-4xl text-slate-200 ml-1">%</span>
-            </div>
-            
-            <div className="inline-flex items-center gap-6 px-6 py-3 bg-slate-50 rounded-full border border-slate-100">
-              <div className="text-left">
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-tight">{t.esm_dist}</p>
-                <p className="text-sm font-bold text-slate-900">{result.distance.toFixed(4)}</p>
-              </div>
-              <div className="w-[1px] h-8 bg-slate-200" />
-              <div className="text-left">
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-tight">{t.esm_conf}</p>
-                <p className="text-sm font-bold text-slate-900">{result.similarity > 70 ? t.esm_high : result.similarity > 40 ? t.esm_mod : t.esm_low}</p>
-              </div>
-            </div>
+      {/* Mode Toggle */}
+      {trained && (
+        <div className="flex justify-center">
+          <div className="inline-flex bg-slate-100 rounded-xl p-1">
+            <button
+              onClick={() => { setMode('compare'); setResult(null); }}
+              className={`px-6 py-2.5 rounded-lg text-sm font-bold transition-all ${mode === 'compare' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+            >
+              {t.esm_mode_compare}
+            </button>
+            <button
+              onClick={() => { setMode('recognize'); setResult(null); }}
+              className={`px-6 py-2.5 rounded-lg text-sm font-bold transition-all ${mode === 'recognize' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+            >
+              {t.esm_mode_recognize}
+            </button>
           </div>
-        )}
-      </div>
+        </div>
+      )}
+
+      {mode === 'compare' ? (
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <FaceBox label={t.esm_source} val={source} set={setSource} color="indigo" t={t} />
+            <FaceBox label={t.esm_target} val={target} set={setTarget} color="slate" t={t} />
+          </div>
+          <CompareResult t={t} source={source} target={target} loading={loading} trained={trained} result={result} compare={compare} />
+        </>
+      ) : (
+        <>
+          <div className="max-w-md mx-auto">
+            <FaceBox label={t.esm_recog_title} val={source} set={setSource} color="indigo" t={t} />
+          </div>
+          <RecognizeResult t={t} source={source} loading={loading} trained={trained} result={result} recognize={recognize} />
+        </>
+      )}
     </div>
   );
 };
+
+const CompareResult = ({ t, source, target, loading, trained, result, compare }: any) => (
+  <div className="flex flex-col items-center pt-8">
+    <button
+      onClick={compare}
+      disabled={!source || !target || loading || !trained}
+      className="px-12 py-5 bg-indigo-600 text-white rounded-2xl text-base font-bold shadow-xl shadow-indigo-100 hover:bg-indigo-700 active:scale-95 transition-all disabled:opacity-40 flex items-center gap-4"
+    >
+      {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <>{t.esm_btn_compare} <RefreshCw className="w-4 h-4" /></>}
+    </button>
+
+    {result && (
+      <div className="mt-16 w-full max-w-2xl bg-white rounded-3xl p-10 shadow-xl border border-slate-100 animate-in zoom-in-95 duration-500 text-center relative overflow-hidden">
+        <div className="absolute top-0 left-0 w-full h-1.5 bg-slate-50">
+          <div className="h-full bg-indigo-600 transition-all duration-1000 ease-out" style={{ width: `${((result.similarity + 1) / 2) * 100}%` }} />
+        </div>
+
+        <p className="text-xs font-bold text-slate-400 uppercase tracking-[0.4em] mb-4">{t.esm_sim}</p>
+        <div className="text-[120px] font-bold tracking-tighter text-indigo-600 leading-none mb-6">
+          {result.similarity.toFixed(2)}
+        </div>
+
+        <div className={`inline-flex items-center gap-3 px-8 py-4 rounded-2xl text-sm font-bold mb-8 ${
+          result.decision === "Mirip"
+            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+            : 'bg-rose-50 text-rose-700 border border-rose-200'
+        }`}>
+          <span className="text-[10px] uppercase tracking-[0.3em] text-current opacity-60">{t.esm_decision}</span>
+          <span className="text-lg">{result.decision === "Mirip" ? t.esm_match : t.esm_no_match}</span>
+          <span className="text-[10px] opacity-50">(t={result.threshold})</span>
+        </div>
+
+        <div className="inline-flex items-center gap-6 px-6 py-3 bg-slate-50 rounded-full border border-slate-100">
+          <div className="text-left">
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-tight">Range</p>
+            <p className="text-sm font-bold text-slate-900">-1.00 – 1.00</p>
+          </div>
+          <div className="w-px h-8 bg-slate-200" />
+          <div className="text-left">
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-tight">{t.esm_conf}</p>
+            <p className="text-sm font-bold text-slate-900">{result.similarity > 0.7 ? t.esm_high : result.similarity > 0.4 ? t.esm_mod : t.esm_low}</p>
+          </div>
+        </div>
+      </div>
+    )}
+  </div>
+);
+
+const RecognizeResult = ({ t, source, loading, trained, result, recognize }: any) => (
+  <div className="flex flex-col items-center pt-8">
+    <button
+      onClick={recognize}
+      disabled={!source || loading || !trained}
+      className="px-12 py-5 bg-indigo-600 text-white rounded-2xl text-base font-bold shadow-xl shadow-indigo-100 hover:bg-indigo-700 active:scale-95 transition-all disabled:opacity-40 flex items-center gap-4"
+    >
+      {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <>{t.esm_recog_btn} <RefreshCw className="w-4 h-4" /></>}
+    </button>
+
+    {result && (
+      <div className="mt-16 w-full max-w-2xl bg-white rounded-3xl p-10 shadow-xl border border-slate-100 animate-in zoom-in-95 duration-500 text-center relative overflow-hidden">
+        <div className="absolute top-0 left-0 w-full h-1.5 bg-slate-50">
+          <div className={`h-full transition-all duration-1000 ease-out ${result.unknown ? 'bg-rose-400' : 'bg-emerald-500'}`} style={{ width: `${((result.similarity + 1) / 2) * 100}%` }} />
+        </div>
+
+        <p className="text-xs font-bold text-slate-400 uppercase tracking-[0.4em] mb-4">{t.esm_recog_result}</p>
+
+        <div className={`text-5xl font-bold tracking-tight mb-4 ${result.unknown ? 'text-slate-400' : 'text-indigo-600'}`}>
+          {result.unknown ? t.esm_unknown : result.name}
+        </div>
+
+        <div className="text-8xl font-bold tracking-tighter text-indigo-600 leading-none mb-6">
+          {result.similarity.toFixed(2)}
+        </div>
+
+        <div className={`inline-flex items-center gap-3 px-8 py-4 rounded-2xl text-sm font-bold mb-8 ${
+          !result.unknown
+            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+            : 'bg-rose-50 text-rose-700 border border-rose-200'
+        }`}>
+          <span className="text-[10px] uppercase tracking-[0.3em] text-current opacity-60">{t.esm_decision}</span>
+          <span className="text-lg">{result.unknown ? t.esm_no_match : t.esm_match}</span>
+          <span className="text-[10px] opacity-50">(t={result.threshold})</span>
+        </div>
+
+        <div className="inline-flex items-center gap-6 px-6 py-3 bg-slate-50 rounded-full border border-slate-100">
+          <div className="text-left">
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-tight">{t.esm_sim}</p>
+            <p className="text-sm font-bold text-slate-900">{result.similarity.toFixed(4)}</p>
+          </div>
+          <div className="w-px h-8 bg-slate-200" />
+          <div className="text-left">
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-tight">{t.esm_conf}</p>
+            <p className="text-sm font-bold text-slate-900">{result.similarity > 0.7 ? t.esm_high : result.similarity > 0.4 ? t.esm_mod : t.esm_low}</p>
+          </div>
+        </div>
+      </div>
+    )}
+  </div>
+);
 
 const FaceBox = ({ label, val, set, color, t }: any) => (
   <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-4">
