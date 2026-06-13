@@ -23,6 +23,7 @@ conductor/
 *.ntvs*
 *.njsproj
 *.sln
+.pyc
 *.sw?
 
 GEMINI.md
