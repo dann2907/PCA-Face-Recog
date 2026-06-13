@@ -65,6 +65,9 @@ const translations = {
     esm_recog_btn: "Identify Face",
     esm_recog_result: "Identification Result",
     esm_unknown: "Unknown",
+    esm_viz_title: "PCA Visualization",
+    esm_mean_face: "Mean Face",
+    esm_eigenfaces: "Top Eigenfaces",
     docs_title: "Mathematical Foundation",
     docs_intro: "This platform leverages Principal Component Analysis to map high-dimensional visual data into an optimized feature space, enabling efficient representation and pattern recognition.",
     docs_decomp: "Decomposition",
@@ -128,6 +131,9 @@ const translations = {
     esm_recog_btn: "Identifikasi Wajah",
     esm_recog_result: "Hasil Identifikasi",
     esm_unknown: "Tidak Dikenali",
+    esm_viz_title: "Visualisasi PCA",
+    esm_mean_face: "Wajah Rata-rata",
+    esm_eigenfaces: "Eigenface Teratas",
     docs_title: "Fondasi Matematika",
     docs_intro: "Platform ini memanfaatkan Principal Component Analysis untuk memetakan data visual dimensi tinggi ke dalam ruang fitur yang dioptimalkan, memungkinkan representasi dan pengenalan pola yang efisien.",
     docs_decomp: "Dekomposisi",
@@ -475,6 +481,19 @@ const ESMTab = ({ t }: { t: any }) => {
   const [loading, setLoading] = useState(false);
   const [training, setTraining] = useState(false);
   const [trained, setTrained] = useState(false);
+  const [meanFace, setMeanFace] = useState<string | null>(null);
+  const [eigenfaces, setEigenfaces] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (!trained) return;
+    Promise.all([
+      axios.get(`${API_BASE}/api/esm/mean-face`),
+      axios.get(`${API_BASE}/api/esm/eigenfaces`),
+    ]).then(([mf, ef]) => {
+      setMeanFace(mf.data.mean_face);
+      setEigenfaces(ef.data.eigenfaces);
+    }).catch(console.error);
+  }, [trained]);
 
   const train = async () => {
     setTraining(true);
@@ -559,6 +578,43 @@ const ESMTab = ({ t }: { t: any }) => {
               {t.esm_mode_recognize}
             </button>
           </div>
+        </div>
+      )}
+
+      {/* PCA Visualization */}
+      {trained && (meanFace || eigenfaces.length > 0) && (
+        <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-8">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 bg-indigo-50 rounded-lg flex items-center justify-center text-indigo-600">
+              <BarChart3 className="w-4 h-4" />
+            </div>
+            <h3 className="text-lg font-bold">{t.esm_viz_title}</h3>
+          </div>
+
+          {meanFace && (
+            <div className="space-y-3">
+              <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">{t.esm_mean_face}</p>
+              <div className="w-32 h-32 bg-slate-50 rounded-xl border border-slate-100 overflow-hidden">
+                <img src={meanFace} className="w-full h-full object-cover" />
+              </div>
+            </div>
+          )}
+
+          {eigenfaces.length > 0 && (
+            <div className="space-y-3">
+              <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">{t.esm_eigenfaces}</p>
+              <div className="grid grid-cols-4 sm:grid-cols-8 gap-3">
+                {eigenfaces.map((ef, i) => (
+                  <div key={i} className="space-y-1">
+                    <div className="aspect-square bg-slate-50 rounded-lg border border-slate-100 overflow-hidden">
+                      <img src={ef} className="w-full h-full object-cover" />
+                    </div>
+                    <p className="text-[9px] font-bold text-slate-300 text-center">EF {i + 1}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 

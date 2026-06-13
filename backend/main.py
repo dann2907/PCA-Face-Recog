@@ -161,6 +161,13 @@ def pca_compress_2d(X, k):
     
     return X_reconstructed, explained_variance.tolist()
 
+def _vec_to_base64_png(vec):
+    """Convert a flat (4096,) normalized [0,1] vector to a base64 PNG data URL."""
+    img = (vec.reshape(64, 64) * 255).clip(0, 255).astype(np.uint8)
+    _, buffer = cv2.imencode('.png', img)
+    return f"data:image/png;base64,{base64.b64encode(buffer).decode('utf-8')}"
+
+
 def compress_image(image_bytes, k):
     nparr = np.frombuffer(image_bytes, np.uint8)
     img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
@@ -309,6 +316,42 @@ async def recognize_face(file: UploadFile = File(...)):
         }
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.get("/api/esm/mean-face")
+async def get_mean_face():
+    """Return the fitted PCA mean face as a base64 PNG."""
+    if esm_mean_face is None:
+        raise HTTPException(status_code=400, detail="ESM model not trained. Call /api/esm/train first.")
+    return {"mean_face": _vec_to_base64_png(esm_mean_face)}
+
+
+@app.get("/api/esm/eigenfaces")
+async def get_eigenfaces():
+    """Return the top-16 principal components as base64 PNGs."""
+    if esm_model is None:
+        raise HTTPException(status_code=400, detail="ESM model not trained. Call /api/esm/train first.")
+
+    components = esm_model.components_[:16]  # shape (16, 4096)
+    eigenfaces = []
+    for comp in components:
+        # Min-max normalize each component to [0, 1] for display
+        c_min, c_max = comp.min(), comp.max()
+        normalized = (comp - c_min) / (c_max - c_min) if c_max > c_min else np.zeros_like(comp)
+        eigenfaces.append(_vec_to_base64_png(normalized))
+
+    return {"eigenfaces": eigenfaces}
+
+
+@app.get("/api/esm/gallery-embeddings")
+async def get_gallery_embeddings():
+    """Return the gallery embedding matrix and labels."""
+    if gallery_embeddings is None:
+        raise HTTPException(status_code=400, detail="ESM model not trained. Call /api/esm/train first.")
+    return {
+        "embeddings": gallery_embeddings.tolist(),
+        "labels": gallery_labels,
+    }
 
 
 @app.get("/api/dataset/load")
