@@ -13,7 +13,9 @@ dist
 dist-ssr
 *.local
 conductor/
+.venv/
 
+__pycache__
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
@@ -26,6 +28,7 @@ conductor/
 .pyc
 *.sw?
 
+.claude/
 GEMINI.md
 backend/.venv
 backend/venv

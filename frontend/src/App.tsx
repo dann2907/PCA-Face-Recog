@@ -68,6 +68,26 @@ const translations = {
     esm_viz_title: "PCA Visualization",
     esm_mean_face: "Mean Face",
     esm_eigenfaces: "Top Eigenfaces",
+    esm_dataset_req_title: "Dataset Requirements",
+    esm_dataset_req_1: "Minimal age gap between photos",
+    esm_dataset_req_2: "Various poses, lighting, conditions",
+    esm_dataset_req_3: "Minimum 5-10 images per person",
+    esm_dataset_req_4: "Consistent image quality",
+    esm_upload_dataset: "Upload Custom Dataset",
+    esm_upload_hint: "Select folder with person subfolders",
+    esm_upload_btn: "Upload Dataset",
+    esm_dataset_info: "Dataset Info",
+    esm_persons: "Persons",
+    esm_images: "Images",
+    esm_threshold_ref: "Similarity Threshold Reference",
+    esm_th_high: "High Similarity",
+    esm_th_moderate: "Moderate",
+    esm_th_low: "Low",
+    esm_th_very_low: "Very Low",
+    esm_th_high_desc: "Likely same person",
+    esm_th_moderate_desc: "Possible match, verify manually",
+    esm_th_low_desc: "Different persons likely",
+    esm_th_very_low_desc: "Definitely different persons",
     docs_title: "Mathematical Foundation",
     docs_intro: "This platform leverages Principal Component Analysis to map high-dimensional visual data into an optimized feature space, enabling efficient representation and pattern recognition.",
     docs_decomp: "Decomposition",
@@ -134,6 +154,26 @@ const translations = {
     esm_viz_title: "Visualisasi PCA",
     esm_mean_face: "Wajah Rata-rata",
     esm_eigenfaces: "Eigenface Teratas",
+    esm_dataset_req_title: "Persyaratan Dataset",
+    esm_dataset_req_1: "Perbedaan usia minimal antar foto",
+    esm_dataset_req_2: "Berbagai pose, pencahayaan, kondisi",
+    esm_dataset_req_3: "Minimal 5-10 gambar per orang",
+    esm_dataset_req_4: "Kualitas gambar konsisten",
+    esm_upload_dataset: "Unggah Dataset Kustom",
+    esm_upload_hint: "Pilih folder dengan subfolder orang",
+    esm_upload_btn: "Unggah Dataset",
+    esm_dataset_info: "Info Dataset",
+    esm_persons: "Orang",
+    esm_images: "Gambar",
+    esm_threshold_ref: "Referensi Ambang Kemiripan",
+    esm_th_high: "Kemiripan Tinggi",
+    esm_th_moderate: "Sedang",
+    esm_th_low: "Rendah",
+    esm_th_very_low: "Sangat Rendah",
+    esm_th_high_desc: "Kemungkinan orang yang sama",
+    esm_th_moderate_desc: "Kemungkinan cocok, verifikasi manual",
+    esm_th_low_desc: "Kemungkinan orang berbeda",
+    esm_th_very_low_desc: "Pasti orang berbeda",
     docs_title: "Fondasi Matematika",
     docs_intro: "Platform ini memanfaatkan Principal Component Analysis untuk memetakan data visual dimensi tinggi ke dalam ruang fitur yang dioptimalkan, memungkinkan representasi dan pengenalan pola yang efisien.",
     docs_decomp: "Dekomposisi",
@@ -265,7 +305,7 @@ const App = () => {
 
         <main className="flex-1 p-8 overflow-y-auto">
           <div className="max-w-6xl mx-auto">
-            {activeTab === 'pca' ? <PCATab t={t} lang={lang} /> : activeTab === 'esm' ? <ESMTab t={t} /> : <DocsTab t={t} />}
+            {activeTab === 'pca' ? <PCATab t={t} lang={lang} /> : activeTab === 'esm' ? <ESMTab t={t} lang={lang} /> : <DocsTab t={t} />}
           </div>
         </main>
       </div>
@@ -473,7 +513,7 @@ const PCATab = ({ t, lang }: { t: any, lang: Lang }) => {
   );
 };
 
-const ESMTab = ({ t }: { t: any }) => {
+const ESMTab = ({ t, lang }: { t: any, lang: Lang }) => {
   const [mode, setMode] = useState<'compare' | 'recognize'>('compare');
   const [source, setSource] = useState<{f: File, p: string} | null>(null);
   const [target, setTarget] = useState<{f: File, p: string} | null>(null);
@@ -483,6 +523,9 @@ const ESMTab = ({ t }: { t: any }) => {
   const [trained, setTrained] = useState(false);
   const [meanFace, setMeanFace] = useState<string | null>(null);
   const [eigenfaces, setEigenfaces] = useState<string[]>([]);
+  const [datasetFiles, setDatasetFiles] = useState<FileList | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [datasetInfo, setDatasetInfo] = useState<{persons: string[], count: number} | null>(null);
 
   useEffect(() => {
     if (!trained) return;
@@ -501,6 +544,19 @@ const ESMTab = ({ t }: { t: any }) => {
       await axios.post(`${API_BASE}/api/esm/train`);
       setTrained(true);
     } catch (e) { console.error(e); } finally { setTraining(false); }
+  };
+
+  const uploadDataset = async () => {
+    if (!datasetFiles || datasetFiles.length === 0) return;
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      for (let i = 0; i < datasetFiles.length; i++) {
+        formData.append('files', datasetFiles[i]);
+      }
+      const { data } = await axios.post(`${API_BASE}/api/dataset/upload`, formData);
+      setDatasetInfo({ persons: data.persons, count: data.uploaded_count });
+    } catch (e) { console.error(e); } finally { setUploading(false); }
   };
 
   const compare = async () => {
@@ -539,16 +595,54 @@ const ESMTab = ({ t }: { t: any }) => {
           </div>
         </div>
         
-        <button 
-          onClick={train} disabled={training || trained}
-          className={`px-8 py-4 rounded-xl text-sm font-bold transition-all flex items-center gap-3 ${
-            trained 
-              ? 'bg-emerald-50 text-emerald-600 border border-emerald-100 cursor-default' 
-              : 'bg-white border border-slate-200 text-slate-900 hover:bg-slate-50 active:scale-95 shadow-sm shadow-slate-100'
-          }`}
-        >
-          {training ? <Loader2 className="w-4 h-4 animate-spin" /> : trained ? <><CheckCircle2 className="w-4 h-4" /> {t.esm_btn_ready}</> : t.esm_btn_train}
-        </button>
+        <div className="flex flex-col items-end gap-4">
+          {/* Dataset Upload */}
+          <div className="flex items-center gap-3">
+            <label className="px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 cursor-pointer transition-all flex items-center gap-2">
+              <Upload className="w-4 h-4" />
+              <span>{t.esm_upload_dataset}</span>
+              <input
+                type="file"
+                // @ts-ignore
+                webkitdirectory=""
+                directory=""
+                multiple
+                className="hidden"
+                onChange={(e) => setDatasetFiles(e.target.files)}
+              />
+            </label>
+            <button
+              onClick={uploadDataset}
+              disabled={uploading || !datasetFiles}
+              className="px-6 py-3 bg-indigo-600 text-white rounded-xl text-sm font-bold shadow-lg shadow-indigo-200 hover:bg-indigo-700 active:scale-95 transition-all disabled:opacity-40 flex items-center gap-2"
+            >
+              {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : t.esm_upload_btn}
+            </button>
+          </div>
+
+          {/* Dataset Info */}
+          {datasetInfo && (
+            <div className="bg-emerald-50 border border-emerald-100 rounded-xl px-4 py-2 flex items-center gap-4">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+              <div className="text-xs">
+                <span className="font-bold text-emerald-900">{datasetInfo.count} {t.esm_images}</span>
+                <span className="text-emerald-600 mx-1">•</span>
+                <span className="font-bold text-emerald-900">{datasetInfo.persons.length} {t.esm_persons}</span>
+              </div>
+            </div>
+          )}
+
+          <button
+            onClick={train} disabled={training || trained}
+            className={`px-8 py-4 rounded-xl text-sm font-bold transition-all flex items-center gap-3 ${
+              trained
+                ? 'bg-emerald-50 text-emerald-600 border border-emerald-100 cursor-default'
+                : 'bg-white border border-slate-200 text-slate-900 hover:bg-slate-50 active:scale-95 shadow-sm shadow-slate-100'
+            }`}
+          >
+            {training ? <Loader2 className="w-4 h-4 animate-spin" /> : trained ? <><CheckCircle2 className="w-4 h-4" /> {t.esm_btn_ready}</> : t.esm_btn_train}
+          </button>
+        </div>
       </div>
 
       {!trained && (
@@ -580,6 +674,41 @@ const ESMTab = ({ t }: { t: any }) => {
           </div>
         </div>
       )}
+
+      {/* Dataset Requirements Clarification */}
+      {trained && (
+        <div className="bg-blue-50 border border-blue-100 rounded-2xl p-6">
+          <div className="flex items-start gap-4">
+            <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center text-blue-600 flex-shrink-0">
+              <Info className="w-4 h-4" />
+            </div>
+            <div>
+              <p className="text-sm font-bold text-blue-900 mb-3">{t.esm_dataset_req_title}</p>
+              <ul className="space-y-2">
+                <li className="flex items-start gap-2">
+                  <div className="w-1.5 h-1.5 rounded-full bg-blue-400 mt-1.5 flex-shrink-0" />
+                  <span className="text-xs text-blue-700">{t.esm_dataset_req_1}</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <div className="w-1.5 h-1.5 rounded-full bg-blue-400 mt-1.5 flex-shrink-0" />
+                  <span className="text-xs text-blue-700">{t.esm_dataset_req_2}</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <div className="w-1.5 h-1.5 rounded-full bg-blue-400 mt-1.5 flex-shrink-0" />
+                  <span className="text-xs text-blue-700">{t.esm_dataset_req_3}</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <div className="w-1.5 h-1.5 rounded-full bg-blue-400 mt-1.5 flex-shrink-0" />
+                  <span className="text-xs text-blue-700">{t.esm_dataset_req_4}</span>
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Threshold Reference */}
+      {trained && <ThresholdReference t={t} lang={lang} />}
 
       {/* PCA Visualization */}
       {trained && (meanFace || eigenfaces.length > 0) && (
@@ -638,6 +767,76 @@ const ESMTab = ({ t }: { t: any }) => {
   );
 };
 
+const ThresholdReference = ({ t, lang }: { t: any, lang: Lang }) => (
+  <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
+    <div className="flex items-center gap-3 mb-4">
+      <div className="w-8 h-8 bg-indigo-50 rounded-lg flex items-center justify-center text-indigo-600">
+        <BarChart3 className="w-4 h-4" />
+      </div>
+      <h3 className="text-lg font-bold">{t.esm_threshold_ref}</h3>
+    </div>
+
+    <div className="space-y-3">
+      <div className="flex items-center gap-3">
+        <div className="w-24 text-right">
+          <span className="text-xs font-bold text-emerald-600">0.80 - 1.00</span>
+        </div>
+        <div className="flex-1 h-8 bg-emerald-100 rounded-lg flex items-center px-3">
+          <span className="text-xs font-bold text-emerald-800">{t.esm_th_high}</span>
+        </div>
+        <div className="w-40">
+          <span className="text-[10px] text-slate-500">{t.esm_th_high_desc}</span>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-3">
+        <div className="w-24 text-right">
+          <span className="text-xs font-bold text-amber-600">0.60 - 0.80</span>
+        </div>
+        <div className="flex-1 h-8 bg-amber-100 rounded-lg flex items-center px-3">
+          <span className="text-xs font-bold text-amber-800">{t.esm_th_moderate}</span>
+        </div>
+        <div className="w-40">
+          <span className="text-[10px] text-slate-500">{t.esm_th_moderate_desc}</span>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-3">
+        <div className="w-24 text-right">
+          <span className="text-xs font-bold text-orange-600">0.40 - 0.60</span>
+        </div>
+        <div className="flex-1 h-8 bg-orange-100 rounded-lg flex items-center px-3">
+          <span className="text-xs font-bold text-orange-800">{t.esm_th_low}</span>
+        </div>
+        <div className="w-40">
+          <span className="text-[10px] text-slate-500">{t.esm_th_low_desc}</span>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-3">
+        <div className="w-24 text-right">
+          <span className="text-xs font-bold text-rose-600">-1.00 - 0.40</span>
+        </div>
+        <div className="flex-1 h-8 bg-rose-100 rounded-lg flex items-center px-3">
+          <span className="text-xs font-bold text-rose-800">{t.esm_th_very_low}</span>
+        </div>
+        <div className="w-40">
+          <span className="text-[10px] text-slate-500">{t.esm_th_very_low_desc}</span>
+        </div>
+      </div>
+    </div>
+
+    <div className="mt-4 pt-4 border-t border-slate-100">
+      <div className="flex items-center gap-2">
+        <div className="w-3 h-3 rounded-full bg-indigo-600" />
+        <span className="text-xs font-medium text-slate-600">
+          {lang === 'en' ? 'Decision Threshold' : 'Ambang Keputusan'}: <span className="font-bold text-indigo-600">0.80</span>
+        </span>
+      </div>
+    </div>
+  </div>
+);
+
 const CompareResult = ({ t, source, target, loading, trained, result, compare }: any) => (
   <div className="flex flex-col items-center pt-8">
     <button
@@ -651,11 +850,19 @@ const CompareResult = ({ t, source, target, loading, trained, result, compare }:
     {result && (
       <div className="mt-16 w-full max-w-2xl bg-white rounded-3xl p-10 shadow-xl border border-slate-100 animate-in zoom-in-95 duration-500 text-center relative overflow-hidden">
         <div className="absolute top-0 left-0 w-full h-1.5 bg-slate-50">
-          <div className="h-full bg-indigo-600 transition-all duration-1000 ease-out" style={{ width: `${((result.similarity + 1) / 2) * 100}%` }} />
+          <div className={`h-full transition-all duration-1000 ease-out ${
+            result.similarity >= 0.8 ? 'bg-emerald-500' :
+            result.similarity >= 0.6 ? 'bg-amber-500' :
+            result.similarity >= 0.4 ? 'bg-orange-500' : 'bg-rose-500'
+          }`} style={{ width: `${((result.similarity + 1) / 2) * 100}%` }} />
         </div>
 
         <p className="text-xs font-bold text-slate-400 uppercase tracking-[0.4em] mb-4">{t.esm_sim}</p>
-        <div className="text-[120px] font-bold tracking-tighter text-indigo-600 leading-none mb-6">
+        <div className={`text-[120px] font-bold tracking-tighter leading-none mb-6 ${
+          result.similarity >= 0.8 ? 'text-emerald-600' :
+          result.similarity >= 0.6 ? 'text-amber-600' :
+          result.similarity >= 0.4 ? 'text-orange-600' : 'text-rose-600'
+        }`}>
           {result.similarity.toFixed(2)}
         </div>
 
@@ -669,7 +876,31 @@ const CompareResult = ({ t, source, target, loading, trained, result, compare }:
           <span className="text-[10px] opacity-50">(t={result.threshold})</span>
         </div>
 
-        <div className="inline-flex items-center gap-6 px-6 py-3 bg-slate-50 rounded-full border border-slate-100">
+        {/* Inline Threshold Bar */}
+        <div className="mx-auto max-w-md">
+          <div className="flex items-center gap-1 h-6 rounded-full overflow-hidden bg-slate-100">
+            <div className="h-full bg-rose-400 flex-1" />
+            <div className="h-full bg-orange-400 flex-1" />
+            <div className="h-full bg-amber-400 flex-1" />
+            <div className="h-full bg-emerald-400 flex-1" />
+          </div>
+          <div className="flex justify-between mt-1 px-1">
+            <span className="text-[9px] text-slate-400">-1.00</span>
+            <span className="text-[9px] text-slate-400">0.40</span>
+            <span className="text-[9px] text-slate-400">0.60</span>
+            <span className="text-[9px] text-slate-400">0.80</span>
+            <span className="text-[9px] text-slate-400">1.00</span>
+          </div>
+          {/* Marker */}
+          <div className="relative h-4">
+            <div
+              className="absolute top-0 w-3 h-3 bg-indigo-600 rounded-full border-2 border-white shadow-md transform -translate-x-1/2"
+              style={{ left: `${((result.similarity + 1) / 2) * 100}%` }}
+            />
+          </div>
+        </div>
+
+        <div className="inline-flex items-center gap-6 px-6 py-3 bg-slate-50 rounded-full border border-slate-100 mt-4">
           <div className="text-left">
             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-tight">Range</p>
             <p className="text-sm font-bold text-slate-900">-1.00 – 1.00</p>
@@ -698,7 +929,11 @@ const RecognizeResult = ({ t, source, loading, trained, result, recognize }: any
     {result && (
       <div className="mt-16 w-full max-w-2xl bg-white rounded-3xl p-10 shadow-xl border border-slate-100 animate-in zoom-in-95 duration-500 text-center relative overflow-hidden">
         <div className="absolute top-0 left-0 w-full h-1.5 bg-slate-50">
-          <div className={`h-full transition-all duration-1000 ease-out ${result.unknown ? 'bg-rose-400' : 'bg-emerald-500'}`} style={{ width: `${((result.similarity + 1) / 2) * 100}%` }} />
+          <div className={`h-full transition-all duration-1000 ease-out ${
+            result.similarity >= 0.8 ? 'bg-emerald-500' :
+            result.similarity >= 0.6 ? 'bg-amber-500' :
+            result.similarity >= 0.4 ? 'bg-orange-500' : 'bg-rose-500'
+          }`} style={{ width: `${((result.similarity + 1) / 2) * 100}%` }} />
         </div>
 
         <p className="text-xs font-bold text-slate-400 uppercase tracking-[0.4em] mb-4">{t.esm_recog_result}</p>
@@ -707,7 +942,11 @@ const RecognizeResult = ({ t, source, loading, trained, result, recognize }: any
           {result.unknown ? t.esm_unknown : result.name}
         </div>
 
-        <div className="text-8xl font-bold tracking-tighter text-indigo-600 leading-none mb-6">
+        <div className={`text-8xl font-bold tracking-tighter leading-none mb-6 ${
+          result.similarity >= 0.8 ? 'text-emerald-600' :
+          result.similarity >= 0.6 ? 'text-amber-600' :
+          result.similarity >= 0.4 ? 'text-orange-600' : 'text-rose-600'
+        }`}>
           {result.similarity.toFixed(2)}
         </div>
 
@@ -721,7 +960,31 @@ const RecognizeResult = ({ t, source, loading, trained, result, recognize }: any
           <span className="text-[10px] opacity-50">(t={result.threshold})</span>
         </div>
 
-        <div className="inline-flex items-center gap-6 px-6 py-3 bg-slate-50 rounded-full border border-slate-100">
+        {/* Inline Threshold Bar */}
+        <div className="mx-auto max-w-md">
+          <div className="flex items-center gap-1 h-6 rounded-full overflow-hidden bg-slate-100">
+            <div className="h-full bg-rose-400 flex-1" />
+            <div className="h-full bg-orange-400 flex-1" />
+            <div className="h-full bg-amber-400 flex-1" />
+            <div className="h-full bg-emerald-400 flex-1" />
+          </div>
+          <div className="flex justify-between mt-1 px-1">
+            <span className="text-[9px] text-slate-400">-1.00</span>
+            <span className="text-[9px] text-slate-400">0.40</span>
+            <span className="text-[9px] text-slate-400">0.60</span>
+            <span className="text-[9px] text-slate-400">0.80</span>
+            <span className="text-[9px] text-slate-400">1.00</span>
+          </div>
+          {/* Marker */}
+          <div className="relative h-4">
+            <div
+              className="absolute top-0 w-3 h-3 bg-indigo-600 rounded-full border-2 border-white shadow-md transform -translate-x-1/2"
+              style={{ left: `${((result.similarity + 1) / 2) * 100}%` }}
+            />
+          </div>
+        </div>
+
+        <div className="inline-flex items-center gap-6 px-6 py-3 bg-slate-50 rounded-full border border-slate-100 mt-4">
           <div className="text-left">
             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-tight">{t.esm_sim}</p>
             <p className="text-sm font-bold text-slate-900">{result.similarity.toFixed(4)}</p>

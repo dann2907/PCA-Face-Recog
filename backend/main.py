@@ -1,5 +1,6 @@
 
 import base64
+import shutil
 import numpy as np
 import cv2
 from pathlib import Path
@@ -8,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sklearn.datasets import fetch_olivetti_faces
 from sklearn.decomposition import PCA as SklearnPCA
 from sklearn.metrics.pairwise import cosine_similarity
+from typing import List
     
 app = FastAPI()
 
@@ -437,6 +439,107 @@ async def debug_similarity_stats():
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/dataset/upload")
+async def api_upload_dataset(files: List[UploadFile] = File(...)):
+    """Upload dataset folder with person subfolders.
+
+    Files should have webkitRelativePath like: dataset_name/person_name/image.jpg
+    Saves to dataset/ directory.
+    """
+    try:
+        uploaded_count = 0
+        person_labels = set()
+
+        for file in files:
+            # Get the relative path from webkitRelativePath
+            # Expected format: folder_name/person_name/image.jpg
+            filename = file.filename
+
+            # Skip non-image files
+            if not any(filename.lower().endswith(ext) for ext in VALID_EXTENSIONS):
+                continue
+
+            # Parse path to get person name
+            parts = Path(filename).parts
+            if len(parts) < 2:
+                # Skip files not in a subfolder
+                continue
+
+            # person_name is the parent folder
+            person_name = parts[-2]
+            person_labels.add(person_name)
+
+            # Create person directory
+            person_dir = DATASET_DIR / person_name
+            person_dir.mkdir(parents=True, exist_ok=True)
+
+            # Save file
+            img_filename = parts[-1]
+            dest_path = person_dir / img_filename
+
+            # Read and save
+            contents = await file.read()
+            with open(dest_path, "wb") as f:
+                f.write(contents)
+
+            uploaded_count += 1
+
+        return {
+            "status": "success",
+            "uploaded_count": uploaded_count,
+            "persons": sorted(list(person_labels)),
+            "total_persons": len(person_labels),
+        }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.get("/api/threshold/examples")
+async def get_threshold_examples():
+    """Return threshold range definitions for similarity visualization."""
+    return {
+        "ranges": [
+            {
+                "min": 0.80,
+                "max": 1.00,
+                "label": "High Similarity",
+                "label_id": "Kemiripan Tinggi",
+                "color": "emerald",
+                "description": "Likely same person",
+                "description_id": "Kemungkinan orang yang sama",
+            },
+            {
+                "min": 0.60,
+                "max": 0.80,
+                "label": "Moderate",
+                "label_id": "Sedang",
+                "color": "amber",
+                "description": "Possible match, verify manually",
+                "description_id": "Kemungkinan cocok, verifikasi manual",
+            },
+            {
+                "min": 0.40,
+                "max": 0.60,
+                "label": "Low",
+                "label_id": "Rendah",
+                "color": "orange",
+                "description": "Different persons likely",
+                "description_id": "Kemungkinan orang berbeda",
+            },
+            {
+                "min": -1.00,
+                "max": 0.40,
+                "label": "Very Low",
+                "label_id": "Sangat Rendah",
+                "color": "rose",
+                "description": "Definitely different persons",
+                "description_id": "Pasti orang berbeda",
+            },
+        ],
+        "threshold": SIMILARITY_THRESHOLD,
+    }
 
 
 if __name__ == "__main__":
